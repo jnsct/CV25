@@ -27,11 +27,11 @@ args = parser.parse_args()
 
 
 ## Set Seeds
-#torch.backends.cudnn.benchmark = True
+torch.backends.cudnn.benchmark = True
 random.seed(1234)
 np.random.seed(1234)
 torch.manual_seed(1234)
-#torch.cuda.manual_seed_all(1234)
+torch.cuda.manual_seed_all(1234)
 
 ## Load yaml configuration file
 yaml_file = args.yml_path
@@ -47,7 +47,7 @@ OPT = opt['OPTIM']
 print('==> Build the model')
 model_restored = LLFormer(inp_channels=3,out_channels=3,dim = 16,num_blocks = [2,4,8,16],num_refinement_blocks = 2,heads = [1,2,4,8],ffn_expansion_factor = 2.66,bias = False,LayerNorm_type = 'WithBias',attention=True,skip = False)
 p_number = network_parameters(model_restored)
-#model_restored.cuda()
+model_restored.cuda()
 
 ## Training model path direction
 mode = opt['MODEL']['MODE']
@@ -58,7 +58,6 @@ train_dir = Train['TRAIN_DIR']
 val_dir = Train['VAL_DIR']
 
 ## GPU
-'''
 gpus = ','.join([str(i) for i in opt['GPU']])
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = gpus
@@ -67,7 +66,7 @@ if torch.cuda.device_count() > 1:
     print("\n\nLet's use", torch.cuda.device_count(), "GPUs!\n\n")
 if len(device_ids) > 1:
     model_restored = nn.DataParallel(model_restored, device_ids=device_ids)
-'''
+
 ## Optimizer
 start_epoch = 1
 new_lr = float(OPT['LR_INITIAL'])
@@ -116,7 +115,8 @@ print(f'''==> Training details:
     Model parameters:   {p_number}
     Start/End epochs:   {str(start_epoch) + '~' + str(OPT['EPOCHS'])}
     Batch sizes:        {OPT['BATCH']}
-    Learning rate:      {OPT['LR_INITIAL']}''')
+    Learning rate:      {OPT['LR_INITIAL']}
+    GPU:                {'GPU' + str(device_ids)}''')
 print('------------------------------------------------------------------')
 
 # Start training!
@@ -142,8 +142,8 @@ for epoch in range(start_epoch, OPT['EPOCHS'] + 1):
         # Forward propagation
         for param in model_restored.parameters():
             param.grad = None
-        target = data[0]#.cuda()
-        input_ = data[1]#.cuda()
+        target = data[0].cuda()
+        input_ = data[1].cuda()
         restored = model_restored(input_)
 
         # Compute loss
@@ -160,8 +160,8 @@ for epoch in range(start_epoch, OPT['EPOCHS'] + 1):
         psnr_val_rgb = []
         ssim_val_rgb = []
         for ii, data_val in enumerate(val_loader, 0):
-            target = data_val[0]#.cuda()
-            input_ = data_val[1]#.cuda()
+            target = data_val[0].cuda()
+            input_ = data_val[1].cuda()
             h, w = target.shape[2], target.shape[3]
             with torch.no_grad():
                 restored = model_restored(input_)

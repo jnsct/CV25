@@ -20,6 +20,6 @@ TRAINING:
   RESUME: False
   TRAIN_PS: 128
   VAL_PS: 128
-  TRAIN_DIR: './datasets/ZDCE/train'      # path to training data
+  TRAIN_DIR: './datasets/ZDCE/train/'      # path to training data
   VAL_DIR: './datasets/ZDCE/test/'        # path to validation data
   SAVE_DIR: './datasets/ZDCE/checkpoints' # path to save models and images

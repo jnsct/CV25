@@ -152,9 +152,6 @@ dependencies:
       - thrift==0.13.0
       - tifffile==2024.8.30
       - tomli==2.2.1
-      - torch==2.6.0+cpu
-      - torchaudio==2.6.0+cpu
-      - torchvision==0.21.0+cpu
       - tqdm==4.67.1
       - transform-tools==1.1.0
       - types-python-dateutil==2.9.0.20241206
