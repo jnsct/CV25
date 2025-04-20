@@ -6,7 +6,7 @@ import os
 import torch
 import yaml
 
-from utils import network_parameters, losses
+from utils import network_parameters
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
@@ -24,6 +24,11 @@ import argparse
 parser = argparse.ArgumentParser(description='Hyper-parameters for LLFormer')
 parser.add_argument('-yml_path', default="./training.yaml", type=str)
 args = parser.parse_args()
+
+
+# Low Light Satellite Model imports
+from utils import ECLLSIE_loss_functions as sat_loss # satellite model loss functions
+
 
 
 ## Set Seeds
@@ -45,9 +50,9 @@ OPT = opt['OPTIM']
 
 ## Build Model
 print('==> Build the model')
-model_restored = LLFormer(inp_channels=3,out_channels=3,dim = 16,num_blocks = [2,4,8,16],num_refinement_blocks = 2,heads = [1,2,4,8],ffn_expansion_factor = 2.66,bias = False,LayerNorm_type = 'WithBias',attention=True,skip = False)
-p_number = network_parameters(model_restored)
-model_restored.cuda()
+model = LLFormer(inp_channels=3,out_channels=3,dim = 16,num_blocks = [2,4,8,16],num_refinement_blocks = 2,heads = [1,2,4,8],ffn_expansion_factor = 2.66,bias = False,LayerNorm_type = 'WithBias',attention=True,skip = False)
+p_number = network_parameters(model)
+model.cuda()
 
 ## Training model path direction
 mode = opt['MODEL']['MODE']
@@ -65,12 +70,12 @@ device_ids = [i for i in range(torch.cuda.device_count())]
 if torch.cuda.device_count() > 1:
     print("\n\nLet's use", torch.cuda.device_count(), "GPUs!\n\n")
 if len(device_ids) > 1:
-    model_restored = nn.DataParallel(model_restored, device_ids=device_ids)
+    model = nn.DataParallel(model_restored, device_ids=device_ids)
 
 ## Optimizer
 start_epoch = 1
 new_lr = float(OPT['LR_INITIAL'])
-optimizer = optim.Adam(model_restored.parameters(), lr=new_lr, betas=(0.9, 0.999), eps=1e-8)
+optimizer = optim.Adam(model.parameters(), lr=new_lr, betas=(0.9, 0.999), eps=1e-8)
 
 ## Scheduler (Strategy)
 warmup_epochs = 3
@@ -82,7 +87,7 @@ scheduler.step()
 ## Resume (Continue training by a pretrained model)
 if Train['RESUME']:
     path_chk_rest = utils.get_last_path(model_dir, '_latest.pth')
-    utils.load_checkpoint(model_restored, path_chk_rest)
+    utils.load_checkpoint(model, path_chk_rest)
     start_epoch = utils.load_start_epoch(path_chk_rest) + 1
     utils.load_optim(optimizer, path_chk_rest)
 
@@ -95,7 +100,7 @@ if Train['RESUME']:
 
 ## Loss
 # L1loss = nn.L1Loss()
-Charloss = nn.SmoothL1Loss()
+#Charloss = nn.SmoothL1Loss()
 
 ## DataLoaders
 print('==> Loading datasets')
@@ -132,44 +137,71 @@ log_dir = os.path.join(Train['SAVE_DIR'], mode, 'log')
 utils.mkdir(log_dir)
 writer = SummaryWriter(log_dir=log_dir, filename_suffix=f'_{mode}')
 
+# instantiate losses
+L_color   = sat_loss.L_color(8)
+# L_color = Myloss.L_color(16)
+L_spa     = sat_loss.L_spa()
+L_exp     = sat_loss.L_exp(16)
+# L_exp   = sat_loss.L_exp(16,0.6)
+
+# L_TV is omitted because it is a regularization of a feature map the transformer does not have
+#L_TV      = sat_loss.L_TV()
+#L_sa     = sat_loss.Sa_Loss()
+
 for epoch in range(start_epoch, OPT['EPOCHS'] + 1):
     epoch_start_time = time.time()
     epoch_loss = 0
     train_id = 1
 
-    model_restored.train()
+    model.train()
     for i, data in enumerate(tqdm(train_loader), 0):
         # Forward propagation
-        for param in model_restored.parameters():
+        for param in model.parameters():
             param.grad = None
-        target = data[0].cuda()
-        input_ = data[1].cuda()
-        restored = model_restored(input_)
+
+        LL_img = data[0].cuda()
+        enhanced_img = model(LL_img)
+
+        E = 0.575 # TODO: Paper with 0.6, Walter with 0.575, Try 0.5
 
         # Compute loss
-        loss = Charloss(restored, target)
+
+        loss_spa = 100*torch.mean(L_spa(enhanced_img, LL_img))
+        loss_col = torch.mean(L_color(enhanced_img))
+
+        loss_exp = 50*torch.mean(L_exp(enhanced_img,E))
+        #loss_sa =  10*torch.mean(L_sa(enhanced_img))
+
+        # best_loss
+        #loss =  Loss_TV + loss_spa + loss_col + loss_exp
+
+        loss = loss_spa + loss_col + loss_exp
 
         # Back propagation
         loss.backward()
         optimizer.step()
         epoch_loss += loss.item()
 
+    '''
+    ################################################################
+    ##### TODO Probably necessary to rewrite validation entirely ###
+    ################################################################
     ## Evaluation (Validation)
     if epoch % Train['VAL_AFTER_EVERY'] == 0:
-        model_restored.eval()
+        model.eval()
         psnr_val_rgb = []
         ssim_val_rgb = []
         for ii, data_val in enumerate(val_loader, 0):
             target = data_val[0].cuda()
-            input_ = data_val[1].cuda()
+            input_ = data_val[0].cuda()
             h, w = target.shape[2], target.shape[3]
             with torch.no_grad():
-                restored = model_restored(input_)
-                restored = restored[:, :, :h, :w]
+                enhanced_img = model(input_)
+                enhanced_img = enhanced_img[:, :, :h, :w]
 
-            for res, tar in zip(restored, target):
+            for res, tar in zip(enhanced_img, target):
                 psnr_val_rgb.append(utils.torchPSNR(res, tar))
-                ssim_val_rgb.append(utils.torchSSIM(restored, target))
+                ssim_val_rgb.append(utils.torchSSIM(enhanced_img, target))
 
         psnr_val_rgb = torch.stack(psnr_val_rgb).mean().item()
         ssim_val_rgb = torch.stack(ssim_val_rgb).mean().item()
@@ -179,7 +211,7 @@ for epoch in range(start_epoch, OPT['EPOCHS'] + 1):
             best_psnr = psnr_val_rgb
             best_epoch_psnr = epoch
             torch.save({'epoch': epoch,
-                        'state_dict': model_restored.state_dict(),
+                        'state_dict': model.state_dict(),
                         'optimizer': optimizer.state_dict()
                         }, os.path.join(model_dir, "model_bestPSNR.pth"))
         print("[epoch %d PSNR: %.4f --- best_epoch %d Best_PSNR %.4f]" % (
@@ -190,7 +222,7 @@ for epoch in range(start_epoch, OPT['EPOCHS'] + 1):
             best_ssim = ssim_val_rgb
             best_epoch_ssim = epoch
             torch.save({'epoch': epoch,
-                        'state_dict': model_restored.state_dict(),
+                        'state_dict': model.state_dict(),
                         'optimizer': optimizer.state_dict()
                         }, os.path.join(model_dir, "model_bestSSIM.pth"))
         print("[epoch %d SSIM: %.4f --- best_epoch %d Best_SSIM %.4f]" % (
@@ -199,13 +231,14 @@ for epoch in range(start_epoch, OPT['EPOCHS'] + 1):
         """
         # Save evey epochs of model
         torch.save({'epoch': epoch,
-                    'state_dict': model_restored.state_dict(),
+                    'state_dict': model.state_dict(),
                     'optimizer': optimizer.state_dict()
                     }, os.path.join(model_dir, f"model_epoch_{epoch}.pth"))
         """
 
         writer.add_scalar('val/PSNR', psnr_val_rgb, epoch)
         writer.add_scalar('val/SSIM', ssim_val_rgb, epoch)
+    '''
     scheduler.step()
 
     print("------------------------------------------------------------------")
@@ -215,7 +248,7 @@ for epoch in range(start_epoch, OPT['EPOCHS'] + 1):
 
     # Save the last model
     torch.save({'epoch': epoch,
-                'state_dict': model_restored.state_dict(),
+                'state_dict': model.state_dict(),
                 'optimizer': optimizer.state_dict()
                 }, os.path.join(model_dir, "model_latest.pth"))
 
