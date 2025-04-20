@@ -70,7 +70,7 @@ device_ids = [i for i in range(torch.cuda.device_count())]
 if torch.cuda.device_count() > 1:
     print("\n\nLet's use", torch.cuda.device_count(), "GPUs!\n\n")
 if len(device_ids) > 1:
-    model = nn.DataParallel(model_restored, device_ids=device_ids)
+    model = nn.DataParallel(model, device_ids=device_ids)
 
 ## Optimizer
 start_epoch = 1
@@ -217,28 +217,26 @@ for epoch in range(start_epoch, OPT['EPOCHS'] + 1):
         print("[epoch %d PSNR: %.4f --- best_epoch %d Best_PSNR %.4f]" % (
             epoch, psnr_val_rgb, best_epoch_psnr, best_psnr))
 
-        # Save the best SSIM model of validation
-        if ssim_val_rgb > best_ssim:
-            best_ssim = ssim_val_rgb
-            best_epoch_ssim = epoch
-            torch.save({'epoch': epoch,
-                        'state_dict': model.state_dict(),
-                        'optimizer': optimizer.state_dict()
-                        }, os.path.join(model_dir, "model_bestSSIM.pth"))
-        print("[epoch %d SSIM: %.4f --- best_epoch %d Best_SSIM %.4f]" % (
-            epoch, ssim_val_rgb, best_epoch_ssim, best_ssim))
-
-        """
-        # Save evey epochs of model
+    # Save the best SSIM model of validation
+    if ssim_val_rgb > best_ssim:
+        best_ssim = ssim_val_rgb
+        best_epoch_ssim = epoch
         torch.save({'epoch': epoch,
                     'state_dict': model.state_dict(),
                     'optimizer': optimizer.state_dict()
-                    }, os.path.join(model_dir, f"model_epoch_{epoch}.pth"))
-        """
-
-        writer.add_scalar('val/PSNR', psnr_val_rgb, epoch)
-        writer.add_scalar('val/SSIM', ssim_val_rgb, epoch)
+                    }, os.path.join(model_dir, "model_bestSSIM.pth"))
+    print("[epoch %d SSIM: %.4f --- best_epoch %d Best_SSIM %.4f]" % (
+    epoch, ssim_val_rgb, best_epoch_ssim, best_ssim))
     '''
+    # Save evey epochs of model
+    torch.save({'epoch': epoch,
+                'state_dict': model.state_dict(),
+                'optimizer': optimizer.state_dict()
+                }, os.path.join(model_dir, f"model_epoch_{epoch}.pth"))
+
+    #writer.add_scalar('val/PSNR', psnr_val_rgb, epoch)
+    #writer.add_scalar('val/SSIM', ssim_val_rgb, epoch)
+
     scheduler.step()
 
     print("------------------------------------------------------------------")
