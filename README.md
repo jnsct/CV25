@@ -1,1 +1,1 @@
-Computer Vision Fall 25 Final Project
+Computer Vision 25 Final Project
