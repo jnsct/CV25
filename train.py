@@ -121,7 +121,8 @@ print(f'''==> Training details:
     Start/End epochs:   {str(start_epoch) + '~' + str(OPT['EPOCHS'])}
     Batch sizes:        {OPT['BATCH']}
     Learning rate:      {OPT['LR_INITIAL']}
-    GPU:                {'GPU' + str(device_ids)}''')
+    GPU:                {'GPU' + str(device_ids)}
+    GPU Name:           {'GPU' + torch.cuda.get_device_name(device_ids)}''')
 print('------------------------------------------------------------------')
 
 # Start training!
@@ -144,8 +145,7 @@ L_spa     = sat_loss.L_spa()
 L_exp     = sat_loss.L_exp(16)
 # L_exp   = sat_loss.L_exp(16,0.6)
 
-# L_TV is omitted because it is a regularization of a feature map the transformer does not have
-#L_TV      = sat_loss.L_TV()
+L_TV      = sat_loss.L_TV()
 #L_sa     = sat_loss.Sa_Loss()
 
 for epoch in range(start_epoch, OPT['EPOCHS'] + 1):
@@ -164,18 +164,18 @@ for epoch in range(start_epoch, OPT['EPOCHS'] + 1):
 
         E = 0.575 # TODO: Paper with 0.6, Walter with 0.575, Try 0.5
 
-        # Compute loss
+        #print(enhanced_img.shape,LL_img.shape)
 
+        # Compute loss
         loss_spa = 100*torch.mean(L_spa(enhanced_img, LL_img))
         loss_col = torch.mean(L_color(enhanced_img))
 
         loss_exp = 50*torch.mean(L_exp(enhanced_img,E))
         #loss_sa =  10*torch.mean(L_sa(enhanced_img))
+        loss_TV  = 50*torch.mean(L_TV(enhanced_img))
 
         # best_loss
-        #loss =  Loss_TV + loss_spa + loss_col + loss_exp
-
-        loss = loss_spa + loss_col + loss_exp
+        loss = loss_TV + loss_spa + loss_col + loss_exp
 
         # Back propagation
         loss.backward()
