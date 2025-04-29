@@ -168,7 +168,7 @@ for epoch in range(start_epoch, OPT['EPOCHS'] + 1):
 
         # Compute loss
         loss_spa = 100*torch.mean(L_spa(enhanced_img, LL_img))
-        loss_col = torch.mean(L_color(enhanced_img))
+        loss_col = 100*torch.mean(L_color(enhanced_img))
 
         loss_exp = 50*torch.mean(L_exp(enhanced_img,E))
         #loss_sa =  10*torch.mean(L_sa(enhanced_img))
