@@ -22,5 +22,5 @@ srun --account=csci_ga_3033_109-2025sp --partition=n1s8-v100-1 --gres=gpu:v100:1
 
 srun --account=csci_ga_3033_109-2025sp --partition=c12m85-a100-1 --gres=gpu --time=04:00:00 --pty /bin/bash
 
-Run without hangup:
-nohup python train.py -yml_path configs/ExDark/training_ExDark.yaml & disown
+Run training:
+python train.py -yml_path configs/ExDark/training_ExDark.yaml
