@@ -1,3 +1,14 @@
+Get to Burst:
+
+If not on NYU network:
+ssh hpctunnel
+
+Then:
+ssh greene
+ssh burst
+
+On burst go to your /scratch/USER, then request a job, create conda env and pull github AFTER allocated resources.
+
 CPU job:
 
 srun --account=csci_ga_3033_109-2025sp --partition=interactive --time=04:00:00 --pty /bin/bash
