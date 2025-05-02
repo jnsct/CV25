@@ -50,7 +50,7 @@ OPT = opt['OPTIM']
 
 ## Build Model
 print('==> Build the model')
-model = LLFormer(inp_channels=3,out_channels=3,dim = 16,num_blocks = [2,4,8,16],num_refinement_blocks = 2,heads = [1,2,4,8],ffn_expansion_factor = 2.66,bias = False,LayerNorm_type = 'WithBias',attention=True,skip = False)
+model = LLFormer(inp_channels=3,out_channels=3,dim = 16,num_blocks = [2,4,8,16],num_refinement_blocks = 2,heads = [1,2,4,8],ffn_expansion_factor = 2.66,bias = False,LayerNorm_type = 'WithBias',attention=True,skip = True)
 p_number = network_parameters(model)
 model.cuda()
 
@@ -148,6 +148,11 @@ L_exp     = sat_loss.L_exp(16)
 L_TV      = sat_loss.L_TV()
 #L_sa     = sat_loss.Sa_Loss()
 
+W_TV      = 50
+W_spa     = 500
+W_col     = 20
+W_exp     = 50 
+
 for epoch in range(start_epoch, OPT['EPOCHS'] + 1):
     epoch_start_time = time.time()
     epoch_loss = 0
@@ -167,15 +172,16 @@ for epoch in range(start_epoch, OPT['EPOCHS'] + 1):
         #print(enhanced_img.shape,LL_img.shape)
 
         # Compute loss
-        loss_spa = 100*torch.mean(L_spa(enhanced_img, LL_img))
-        loss_col = 10*torch.mean(L_color(enhanced_img))
+        loss_spa = torch.mean(L_spa(enhanced_img, LL_img))
+        loss_col = torch.mean(L_color(enhanced_img))
 
-        loss_exp = 50*torch.mean(L_exp(enhanced_img,E))
-        #loss_sa =  10*torch.mean(L_sa(enhanced_img))
-        loss_TV  = 50*torch.mean(L_TV(enhanced_img))
+        loss_exp = torch.mean(L_exp(enhanced_img,E))
+        loss_TV  = torch.mean(L_TV(enhanced_img))
 
         # best_loss
-        loss = loss_TV + loss_spa + loss_col + loss_exp
+        print(f"Unweighted:\nTV: {loss_TV}, SPA: {loss_spa}, COL: {loss_col}, EXP: {loss_exp}")
+        print(f"Weighted:\nTV: {W_TV*loss_TV}, SPA: {W_spa*loss_spa}, COL: {W_col*loss_col}, EXP: {W_exp*loss_exp}")
+        loss = W_TV*loss_TV + W_spa*loss_spa + W_col*loss_col + W_exp*loss_exp
 
         # Back propagation
         loss.backward()
