@@ -1,0 +1,26 @@
+Get to Burst:
+
+If not on NYU network:
+ssh hpctunnel
+
+Then:
+ssh greene
+ssh burst
+
+On burst go to your /scratch/USER, then request a job, create conda env and pull github AFTER allocated resources.
+
+CPU job:
+
+srun --account=csci_ga_3033_109-2025sp --partition=interactive --time=04:00:00 --pty /bin/bash
+
+GPU Jobs:
+
+•	1 V100 GPU for 4 hours:
+srun --account=csci_ga_3033_109-2025sp --partition=n1s8-v100-1 --gres=gpu:v100:1 --time=04:00:00 --pty /bin/bash
+
+1 A100 GPU for 4 hours 
+
+srun --account=csci_ga_3033_109-2025sp --partition=c12m85-a100-1 --gres=gpu --time=04:00:00 --pty /bin/bash
+
+Run training:
+python train.py -yml_path configs/ExDark/training_ExDark.yaml
