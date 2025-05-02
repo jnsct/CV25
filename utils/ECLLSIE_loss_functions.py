@@ -170,3 +170,24 @@ class L_KDL(nn.Module):
         l_kl = l_kl_rb + l_kl_rg + l_kl_gb
 
         return l_kl_rb, l_kl_rg, l_kl_gb, l_kl
+
+class L_SAT(nn.Module):
+    def __init__(self, div):
+        super(L_SAT, self).__init__()
+        self.div = div
+
+    def forward(self, x):
+        b, c, h, w = x.shape
+        blockH = h // self.div
+        blockW = w // self.div
+        loss = torch.FloatTensor([0]).cuda()
+
+        for bH in range(self.div):
+            for bW in range(self.div):
+                x_block = x[:, :, bH * blockH:(bH + 1) * blockH, bW * blockW:(bW + 1) * blockW]  # (B, 3, blockH, blockW)
+                mean_rgb = torch.mean(x_block, dim=1, keepdim=True)  # (B, 1, blockH, blockW)
+                saturation = torch.abs(x_block - mean_rgb)  # (B, 3, blockH, blockW)
+                loss += torch.mean(saturation)
+
+        return loss / (self.div * self.div)
+

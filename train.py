@@ -145,11 +145,13 @@ L_spa     = sat_loss.L_spa()
 L_exp     = sat_loss.L_exp(16)
 # L_exp   = sat_loss.L_exp(16,0.6)
 
+L_sat     = sat_loss.L_SAT(8)
 L_TV      = sat_loss.L_TV()
 #L_sa     = sat_loss.Sa_Loss()
 
 W_TV      = 50
 W_spa     = 500
+W_sat     = 10
 W_col     = 20
 W_exp     = 50 
 
@@ -173,15 +175,16 @@ for epoch in range(start_epoch, OPT['EPOCHS'] + 1):
 
         # Compute loss
         loss_spa = torch.mean(L_spa(enhanced_img, LL_img))
-        loss_col = torch.mean(L_color(enhanced_img))
+        #loss_col = torch.mean(L_color(enhanced_img))
+        loss_sat = torch.mean(L_sat(enhanced_img))
 
         loss_exp = torch.mean(L_exp(enhanced_img,E))
         loss_TV  = torch.mean(L_TV(enhanced_img))
 
         # best_loss
-        print(f"Unweighted:\nTV: {loss_TV}, SPA: {loss_spa}, COL: {loss_col}, EXP: {loss_exp}")
-        print(f"Weighted:\nTV: {W_TV*loss_TV}, SPA: {W_spa*loss_spa}, COL: {W_col*loss_col}, EXP: {W_exp*loss_exp}")
-        loss = W_TV*loss_TV + W_spa*loss_spa + W_col*loss_col + W_exp*loss_exp
+        print(f"Unweighted:\nTV: {loss_TV}, SPA: {loss_spa}, SAT: {loss_sat}, EXP: {loss_exp}")
+        print(f"Weighted:\nTV: {W_TV*loss_TV}, SPA: {W_spa*loss_spa}, SAT: {W_sat*loss_sat}, EXP: {W_exp*loss_exp}")
+        loss = W_TV*loss_TV + W_spa*loss_spa + W_sat*loss_sat + W_exp*loss_exp
 
         # Back propagation
         loss.backward()
