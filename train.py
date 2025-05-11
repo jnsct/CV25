@@ -33,10 +33,10 @@ from utils import ECLLSIE_loss_functions as sat_loss # satellite model loss func
 
 ## Set Seeds
 torch.backends.cudnn.benchmark = True
-random.seed(1234)
-np.random.seed(1234)
-torch.manual_seed(1234)
-torch.cuda.manual_seed_all(1234)
+#random.seed(1234)
+#np.random.seed(1234)
+#torch.manual_seed(1234)
+#torch.cuda.manual_seed_all(1234)
 
 ## Load yaml configuration file
 yaml_file = args.yml_path
@@ -50,7 +50,7 @@ OPT = opt['OPTIM']
 
 ## Build Model
 print('==> Build the model')
-model = LLFormer(inp_channels=3,out_channels=3,dim = 16,num_blocks = [2,4,8,16],num_refinement_blocks = 2,heads = [1,2,4,8],ffn_expansion_factor = 2.66,bias = False,LayerNorm_type = 'WithBias',attention=True,skip = True)
+model = LLFormer(inp_channels=3,out_channels=3,dim = 16,num_blocks = [2,4,8,16],num_refinement_blocks = 2,heads = [1,2,4,8],ffn_expansion_factor = 2.66,bias = False,LayerNorm_type = 'WithBias',attention=True,skip = False)
 p_number = network_parameters(model)
 model.cuda()
 
@@ -147,17 +147,21 @@ L_exp     = sat_loss.L_exp(16)
 
 L_sat     = sat_loss.L_SAT(8)
 L_TV      = sat_loss.L_TV()
+L_col_con = sat_loss.L_col_con()
 #L_sa     = sat_loss.Sa_Loss()
 
-W_TV      = 50
-W_spa     = 500
+W_TV      = 20
+W_spa     = 220
 W_sat     = 10
-W_col     = 20
-W_exp     = 50 
+W_col     = 10
+W_exp     = 25
+W_col_con = 60
+
 
 for epoch in range(start_epoch, OPT['EPOCHS'] + 1):
     epoch_start_time = time.time()
     epoch_loss = 0
+    batches = 0
     train_id = 1
 
     model.train()
@@ -175,21 +179,35 @@ for epoch in range(start_epoch, OPT['EPOCHS'] + 1):
 
         # Compute loss
         loss_spa = torch.mean(L_spa(enhanced_img, LL_img))
-        #loss_col = torch.mean(L_color(enhanced_img))
+        loss_col = torch.mean(L_color(enhanced_img))
         loss_sat = torch.mean(L_sat(enhanced_img))
 
         loss_exp = torch.mean(L_exp(enhanced_img,E))
         loss_TV  = torch.mean(L_TV(enhanced_img))
+        loss_col_con = torch.mean(L_col_con(LL_img, enhanced_img))
 
-        # best_loss
-        print(f"Unweighted:\nTV: {loss_TV}, SPA: {loss_spa}, SAT: {loss_sat}, EXP: {loss_exp}")
-        print(f"Weighted:\nTV: {W_TV*loss_TV}, SPA: {W_spa*loss_spa}, SAT: {W_sat*loss_sat}, EXP: {W_exp*loss_exp}")
-        loss = W_TV*loss_TV + W_spa*loss_spa + W_sat*loss_sat + W_exp*loss_exp
+        
+        '''
+        print(f"Unweighted:\nTV: {loss_TV}, SPA: {loss_spa}, SAT: {loss_sat}, EXP: {loss_exp}, COL_CON: {loss_col_con}, COL: {loss_col}")
+        print(f"Weighted:\nTV: {W_TV*loss_TV}, SPA: {W_spa*loss_spa}, SAT: {W_sat*loss_sat}, \
+                EXP: {W_exp*loss_exp}, COL_CON: {W_col_con*loss_col_con}, COL: {W_col*loss_col}")
+        '''
+        
+        #loss = W_TV*loss_TV + W_spa*loss_spa + W_sat*loss_sat + W_exp*loss_exp + W_col_con*loss_col_con + W_col*loss_col
+        loss = torch.log(1 +
+                W_TV * loss_TV +
+                W_spa * loss_spa +
+                W_sat * loss_sat +
+                W_col * loss_col +
+                W_exp * loss_exp +
+                W_col_con * loss_col_con
+                )
 
         # Back propagation
         loss.backward()
         optimizer.step()
         epoch_loss += loss.item()
+        batches += 1
 
     '''
     ################################################################
@@ -199,6 +217,7 @@ for epoch in range(start_epoch, OPT['EPOCHS'] + 1):
     if epoch % Train['VAL_AFTER_EVERY'] == 0:
         model.eval()
         psnr_val_rgb = []
+
         ssim_val_rgb = []
         for ii, data_val in enumerate(val_loader, 0):
             target = data_val[0].cuda()
@@ -247,6 +266,7 @@ for epoch in range(start_epoch, OPT['EPOCHS'] + 1):
     #writer.add_scalar('val/SSIM', ssim_val_rgb, epoch)
 
     scheduler.step()
+    epoch_loss /= batches
 
     print("------------------------------------------------------------------")
     print("Epoch: {}\tTime: {:.4f}\tLoss: {:.4f}\tLearningRate {:.6f}".format(epoch, time.time() - epoch_start_time,

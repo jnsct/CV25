@@ -8,7 +8,7 @@ MODEL:
 
 # Optimization arguments.
 OPTIM:
-  BATCH: 16 # 8 originally
+  BATCH: 8 # 8 originally
   EPOCHS: 4000
   # EPOCH_DECAY: [10]
   LR_INITIAL: 1e-4
